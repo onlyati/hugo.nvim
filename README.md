@@ -21,17 +21,13 @@ return {
     "onlyati/hugo.nvim",
     name = "hugo-server",
     init = function()
-        local cwd = vim.fn.getcwd()
-        for _, filename in ipairs({
+        if #vim.fs.find({
             "hugo.toml",
-            "hugo.json",
             "hugo.yaml",
-            "hugo.yml",
-        }) do
-            if vim.fn.filereadable(cwd .. "/" .. filename) == 1 then
-                require("lazy").load({ plugins = { "hugo-server" } })
-                return
-            end
+            "hugo.json",
+            "hugo.yml" },
+            {}) > 0 then
+            require("lazy").load({ plugins = { "hugo-server" } })
         end
     end,
     config = function()
