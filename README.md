@@ -1,7 +1,10 @@
 # Hugo Neovim plugin
 
-This plugin integrate [hugo](https://gohugo.io) command into Neovim. By this
-plugin, commands can be used to work with hugo:
+This plugin integrate [hugo](https://gohugo.io) command into Neovim. If a
+`hugo.[toml|json|yaml|yml]` is present in the root and `auto_start` is set to
+`true`, then hugo server automatically started.
+
+By this plugin, commands can be used to work with hugo:
 
 - `:HugoStart`: Start server
 - `:HugoStop`: Stop server
@@ -47,7 +50,7 @@ return {
                 "--bind",
                 "127.0.0.1"
             },
-            auto_start = false,
+            auto_start = true,
         })
     end,
     cmd = { "HugoStart", "HugoStop" },
