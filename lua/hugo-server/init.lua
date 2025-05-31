@@ -1,13 +1,20 @@
-local M = {}
-
-local handle = nil
-local stdout = nil
-local stderr = nil
-
 ---@class HugoOptions
 ---@field hugo_cmd? string
 ---@field args string[]
 ---@field auto_start boolean
+
+local M = {}
+
+---@type uv.uv_process_t|nil
+local handle = nil
+
+---@type uv.uv_pipe_t|nil
+local stdout = nil
+
+---@type uv.uv_pipe_t|nil
+local stderr = nil
+
+local uv = vim.uv
 
 --- Setup function for the plugin
 ---@param opts HugoOptions|nil
@@ -24,7 +31,7 @@ function M.setup(opts)
 		end,
 	})
 
-	if M.opts.auto_start and IsItHugoProject() then
+	if M.opts.auto_start and M.is_it_hugo_project() then
 		M.notify("Detected Hugo project", vim.log.levels.WARN)
 		M.start()
 	end
@@ -32,14 +39,8 @@ end
 
 --- Check if current directoy is a Hugo project
 ---@return boolean
-function IsItHugoProject()
-	local cwd = vim.fn.getcwd()
-	for _, filename in ipairs({ "hugo.toml", "hugo.yaml", "hugo.json", "hugo.yml" }) do
-		if vim.fn.filereadable(cwd .. "/" .. filename) == 1 then
-			return true
-		end
-	end
-	return false
+function M.is_it_hugo_project()
+	return #vim.fs.find({ "hugo.toml", "hugo.yaml", "hugo.json", "hugo.yml" }, { upward = true, limit = 1 }) > 0
 end
 
 --- Wrapper around vim.notify
@@ -67,14 +68,12 @@ function M.start()
 		return
 	end
 
-	---@diagnostic disable-next-line: undefined-field
-	stdout = vim.loop.new_pipe(false)
+	stdout = uv.new_pipe(false)
+	stderr = uv.new_pipe(false)
+	local pid = nil
 
-	---@diagnostic disable-next-line: undefined-field
-	stderr = vim.loop.new_pipe(false)
-
-	---@diagnostic disable-next-line: undefined-field
-	handle = vim.loop.spawn(M.opts.hugo_cmd, {
+	---@diagnostic disable-next-line
+	handle, pid = uv.spawn(M.opts.hugo_cmd, {
 		args = M.opts.args,
 		stdio = { nil, stdout, stderr },
 	}, function(code, signal)
@@ -84,25 +83,36 @@ function M.start()
 		handle = nil
 	end)
 
+	if not handle then
+		M.notify("[hugo] failed to start", vim.log.levels.ERROR)
+		return
+	end
+
+	M.notify("[hugo] started, pid: " .. pid, vim.log.levels.INFO)
+
 	-- Read stdout
-	stdout:read_start(function(err, data)
-		assert(not err, err)
-		if data then
-			vim.schedule(function()
-				M.notify("[hugo] " .. data, vim.log.levels.INFO)
-			end)
-		end
-	end)
+	if stdout ~= nil then
+		stdout:read_start(function(err, data)
+			assert(not err, err)
+			if data and vim.trim(data) ~= "" then
+				vim.schedule(function()
+					M.notify("[hugo] " .. data, vim.log.levels.INFO)
+				end)
+			end
+		end)
+	end
 
 	-- Read stderr
-	stderr:read_start(function(err, data)
-		assert(not err, err)
-		if data then
-			vim.schedule(function()
-				M.notify("[hugo error] " .. data, vim.log.levels.ERROR)
-			end)
-		end
-	end)
+	if stderr ~= nil then
+		stderr:read_start(function(err, data)
+			assert(not err, err)
+			if data and vim.trim(data) ~= "" then
+				vim.schedule(function()
+					M.notify("[hugo error] " .. data, vim.log.levels.ERROR)
+				end)
+			end
+		end)
+	end
 end
 
 --- Stop Hugo server
