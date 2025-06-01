@@ -40,7 +40,14 @@ end
 --- Check if current directoy is a Hugo project
 ---@return boolean
 function M.is_it_hugo_project()
-	return #vim.fs.find({ "hugo.toml", "hugo.yaml", "hugo.json", "hugo.yml" }, {}) > 0
+	local cwd, _, _ = uv.cwd()
+	for _, v in ipairs({ "hugo.toml", "hugo.yaml", "hugo.json", "hugo.yml" }) do
+		local path = cwd .. "/" .. v
+		if uv.fs_stat(path) then
+			return true
+		end
+	end
+	return false
 end
 
 --- Wrapper around vim.notify
